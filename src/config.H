@@ -3,7 +3,7 @@
 
 namespace ICAR_UPCXX
 {
-  static const int NUM_THREAD_TEAMS=4;
+  static const int NUM_THREAD_TEAMS=1;
   static const int NUM_THREADS_PER_TEAM=4;
   static const int NUM_COMM_THREADS=1;
   static const int NUM_PREGENERATED_PACKAGES=3;
