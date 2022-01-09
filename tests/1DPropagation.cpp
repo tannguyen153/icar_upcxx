@@ -13,22 +13,27 @@ class tokenTask : public IcarTask
 	 Message *msg;
 
     public:
-    tokenTask(){
+    void initialize(){
   	 leftNeighbor = _id==0?-1:_id-1;
   	 rightNeighbor= _id==(NTASKS-1)?-1:_id+1;
  	 tag=0; msgSize=0;
-	 if(_id==0) msg= new Message(); //an empty message
-	 else msg=NULL;
+	 if(_id==0){
+	     msg= new Message(1); //an empty message
+	     _state=RUNNABLE;
+	 }else{
+	     _state=WAITING;
+	     msg=NULL;
+	 }
 	 //register the data dependency
-	 if(leftNeighbor!=-1)  input.add(leftNeighbor, tag, msgSize);//waiting for a message from the left neighbor
+	 if(leftNeighbor!=-1)  add_input(leftNeighbor, tag, msgSize);//waiting for a message from the left neighbor
     }
     ~tokenTask(){if(msg) free(msg);}
     void Run(){
 	 if(_id==0){
-            output.put(rightNeighbor, tag, msg);
+            put(rightNeighbor, tag, msg);
 	 }else{
 	    Message *msg= input.get(leftNeighbor, tag); 
-            if(rightNeighbor!=-1)output.put(rightNeighbor, tag, msg);
+            if(rightNeighbor!=-1) put(rightNeighbor, tag, msg);
 	 } 
 	 _state=FINISHED;
     }

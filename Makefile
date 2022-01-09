@@ -9,7 +9,7 @@ PPFLAGS=$(shell $(UPCXX_INSTALL)/bin/upcxx-meta PPFLAGS)
 LDFLAGS=$(shell $(UPCXX_INSTALL)/bin/upcxx-meta LDFLAGS)
 LIBFLAGS=$(shell $(UPCXX_INSTALL)/bin/upcxx-meta LIBFLAGS)
 
-export CXX = $(UPCXX_INSTALL)/bin/upcxx -network=mpi -O3 #$(PPFLAGS) $(LDFLAGS) $(LIBFLAGS) 
+export CXX = $(UPCXX_INSTALL)/bin/upcxx -network=mpi -O3 -DPRINT_OUT_EVENTS#$(PPFLAGS) $(LDFLAGS) $(LIBFLAGS) 
 export LDLIBS += -L$(LIBGEN)
 export CXXFLAGS += $(INCLUDES) $(FLAGS) $(ARCH_FLAGS) -O3
 export LDFLAGS += $(FLAGS) $(ARCH_FLAGS)

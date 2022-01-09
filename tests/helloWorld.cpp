@@ -7,7 +7,7 @@ int NTASKS=8;
 class greetingTask : public IcarTask
 {
     public:
-    greetingTask(){_state=RUNNABLE;}
+    void initialize(){_state=RUNNABLE;}
     void Run(){
          std::cout<<"Hello from Task #"<< _id<< "(Derived from class IcarTask)"<<std::endl;
 	 _state=FINISHED;

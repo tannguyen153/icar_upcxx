@@ -114,31 +114,34 @@ typedef std::map< int, std::map<int, std::deque<Message*> > >::iterator inputIte
 typedef std::map< int, std::map<int, std::deque<Message*> > >::iterator outputIter;
 struct communicationChannel{
     std::map< int, std::map<int, std::deque<Message*> > >channel;
-    bool add(int partnerID, int tag, size_t msgSize){ //add dependency
-	if(channel[partnerID][tag]. size()>0) return false; //this dependency already existed
-	Message *msg= new Message(partnerID, tag, msgSize);
-        channel[partnerID][tag].push_back(msg);
+    bool add(int src, int dst, int tag, size_t msgSize){ //add dependency
+
+	if(channel[src][tag]. size()>0) return false; //this dependency already existed
+	Message *msg= new Message(src, tag, msgSize);
+        msg->src= src;
+        msg->dst= dst;
+        channel[src][tag].push_back(msg);
 	return true;
     }
     Message* get(int partnerID, int tag){ //pull the input
         //assert(channel[partnerID, tag]. size()>0);	
 	Message* msg= channel[partnerID][tag].front();
 	channel[partnerID][tag].pop_front();
+	msg->served=false;//needed when reusing the message
 	return msg;
     }
     void put(int partnerID, int tag, Message* msg){ //push the output data out
 	channel[partnerID][tag].push_back(msg);	
     }
     bool checkDependencies(){
-	bool fireable=true;
 	for(inputIter it=channel.begin(); it!=channel.end(); it++){
             for(std::map<int, std::deque<Message*> >::iterator it1=(*it).second.begin(); it1!=(*it).second.end(); it1++)
 	    {
-	        if((*it1).second.size()==0) fireable=false;
-		if((*it1).second.front()->completed==false) return false;
+		if((*it1).second.size()>0)
+		    if((*it1).second.front()->completed==false) return false;
 	    }
 	}
-	return fireable;
+	return true;
    };
 };
 
@@ -151,14 +154,20 @@ class IcarTask{
     communicationChannel input;
     communicationChannel output;
     IcarTask(){_state= INIT;}
+    virtual void initialize(){};
     TASK_STATE getState(){return _state;}
     void setID(int id){_id=id;}
     void setLocalID(int id){_localId=id;}
-    bool add(int partnerID, int tag, size_t size){return input.add(partnerID, tag, size); }
+    bool add_input(int partnerID, int tag, size_t size){return input.add(partnerID, _id, tag, size); }
     Message* get(int partnerID, int tag) {return input.get(partnerID, tag); } 
     void put(int partnerID, int tag, Message* msg){ 
-	msg->setSource(_id);
-        msg->setDestination(partnerID);
+	#ifdef PRINT_OUT_EVENTS
+	std::cout<<"Task "<<_id<<" sends data to Task "<<partnerID<<std::endl;
+	#endif
+	msg->src= _id;
+	msg->dst= partnerID;
+        msg->completed = false;
+        msg->served = false;
 	output.put(partnerID, tag, msg); 
     }
     bool checkDependencies(){
@@ -207,9 +216,13 @@ class IcarGraph{
 		 base= upcxx::rank_me()*chunkSize + nTasks%upcxx::rank_n();
 	   }
     	   for(int i=0; i<_nLocalTasks[0]; i++){
-		 _taskVec.push_back(new T);
+		 _taskVec.push_back(new T());
 		 _taskVec[i]->setLocalID(i);
 		 _taskVec[i]->setID(base+i);
+	         _taskVec[i]->initialize();
+		 #ifdef PRINT_OUT_EVENTS
+		 std::cout<<"Created Task "<<base+i<< " and assigned to process "<< upcxx::rank_me()<<std::endl;
+		 #endif
 	   }
 	   _lastHeavyLoadProcess= _size%upcxx::rank_n()-1;
 	   _switchingPoint= (_lastHeavyLoadProcess+1)*(chunkSize+1);

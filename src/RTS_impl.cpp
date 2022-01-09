@@ -59,8 +59,8 @@ struct pendingGetList_t{
                        rMsgMap.map[src][tag].front()->tag= tag;
                        localbuf= (rMsgMap.map[src][tag].front()->databuf).local(); //(double*) (static_cast<upcxx::global_ptr<void> > (rMsgMap.map[src][tag].front()->databuf).local());
                        *(rMsgMap.map[src][tag].front()->request)= upcxx::rget((*it)->sbuf, localbuf, (*it)->size);
-                       rMsgMap.map[src][tag].pop_front();
-                       rMsgMap.size--;
+                       //rMsgMap.map[src][tag].pop_front();
+                       //rMsgMap.size--;
                        std::list< getReq_t* >::iterator it1= it;
                        it++;
                        delete (*it);
@@ -90,12 +90,12 @@ void RTS::serviceCommunicationRequest(IcarGraph<1, IcarTask>* graph)
             for(std::map<int, std::deque<Message*> >::iterator it1=(*it).second.begin(); it1!=(*it).second.end(); it1++)
 	    {
 		int tag= (*it1).first;
-                if((*it1).second.size()==0)//!no message has been received or all received messages have been claimed
+                if((*it1).second.size()==1)
                     nextrReq = true;
                 else
                 {
                     Message *msg = (*it1).second.back();
-                    if(msg->completed && (*it1).second.size() == 1) //!latest receive request has been completed
+                    if(msg->completed && (*it1).second.size() == 2) //!latest receive request has been completed
                         nextrReq = true;
                     else //!expected message is still on the way
                         nextrReq = false;
@@ -112,8 +112,8 @@ void RTS::serviceCommunicationRequest(IcarGraph<1, IcarTask>* graph)
         }
 	waitQueue.push_back(task);
     }
-    std::vector<IcarTask*> taskList= graph->getTaskList();
 
+    std::vector<IcarTask*> taskList= graph->getTaskList();
     for(int t=0; t<taskList.size(); t++)
     {   
 	IcarTask* task= taskList[t];
@@ -133,14 +133,14 @@ void RTS::serviceCommunicationRequest(IcarGraph<1, IcarTask>* graph)
                     {   
                         sMessage->completed = false;
                         sMessage->served = true;
-                        int src= upcxx::rank_me();
+                        int src= sMessage->src;
                         //register send request so that the receiver can send back confirmation upon pull completion
                         sMessage->completed = false;
                         sMsgMap.map[dst][tag].push_back(sMessage);
                         sMsgMap.size++;
                         int size= sMessage->bufSize;
                         upcxx::global_ptr<double> sbuf= sMessage->databuf; //static_cast<upcxx::global_ptr<double> >((double*)sMessage->databuf);
-                        upcxx::rpc(dst,
+                        upcxx::rpc(graph->taskToProcess(dst),
                          [=](){
                             //at destination rank, look up recv buffer and pull remote data and store data in the buffer
                             bool posted_recv=false;
@@ -151,8 +151,8 @@ void RTS::serviceCommunicationRequest(IcarGraph<1, IcarTask>* graph)
                                      posted_recv=true;
                                      localbuf= (rMsgMap.map[src][tag].front()->databuf).local(); //(double*) static_cast<upcxx::global_ptr<void> > (rMsgMap.map[src][tag].front()->databuf).local(); 
                                      *(rMsgMap.map[src][tag].front()->request)= upcxx::rget(sbuf, localbuf, size);
-                                     rMsgMap.map[src][tag].pop_front();
-                                     rMsgMap.size--;
+                                     //rMsgMap.map[src][tag].pop_front();
+                                     //rMsgMap.size--;
                                  }
                             } 
                             //save pull request for later when recv buffer is posted 
@@ -169,6 +169,7 @@ void RTS::serviceCommunicationRequest(IcarGraph<1, IcarTask>* graph)
     } // for(t<numTasks)
 
     pendingGetList.process();
+    upcxx:: progress();
 
     //!now we test if send and receive requests have been serviced
 
@@ -190,8 +191,8 @@ void RTS::serviceCommunicationRequest(IcarGraph<1, IcarTask>* graph)
                         int ret_flag;
                         if(rearMessage->request->ready())
                         {
-                              int dst = upcxx::rank_me();
-                              upcxx::rpc(src,
+                              int dst = rearMessage->dst;
+                              upcxx::rpc(graph->taskToProcess(src),
                                     [=](){
                                         sMsgMap.map[dst][tag].front()->completed=true;
                                         sMsgMap.map[dst][tag].pop_front();
@@ -201,11 +202,14 @@ void RTS::serviceCommunicationRequest(IcarGraph<1, IcarTask>* graph)
 
                             delete rearMessage->request;
                             rearMessage->completeRequest();
+			    rMsgMap.map[src][tag].pop_front();
+			    rMsgMap.size--;
                         }
                     }
                 } 
 	    }
         } 
+	waitQueue.push_back(task);
     } 
 
     for(int t=0; t<taskList.size(); t++)
@@ -223,16 +227,16 @@ void RTS::serviceCommunicationRequest(IcarGraph<1, IcarTask>* graph)
                     {   
                         bool flag = false;
                         int ret_flag;
-                        if(frontMessage->request==0)
+                        if(frontMessage->completed)
                         {   
 			    (*it1).second.pop_front();
 		   	    delete frontMessage;
                         }
                     }
-                } // if(queueSize > 0)
-            }    // for(i<nsnd)
+                } 
+            }    
         }
-    }// for(f<numfabs)
+    }
 
 }// serviceRemoteRequests
 #endif
@@ -343,7 +347,7 @@ void RTS::serviceCommunicationRequest(IcarGraph<1, IcarTask>* graph)
 	    IcarTask* t= graph->getTaskList()[i]; 
             switch(t->getState()){
 		    case RUNNABLE: readyQueue.push_back(t); break; 
-		    case WAITING:  waitQueue.push_back(t); break; 
+		    case WAITING:  waitQueue.push_back(t); break;
 	    };
 	}
 	int finishedTasks=0;
@@ -360,12 +364,7 @@ void RTS::serviceCommunicationRequest(IcarGraph<1, IcarTask>* graph)
 		     else if(t->getState()==FINISHED) finishedTasks++;
 	    }
 #endif
-	    //serve communication requests 
-#ifdef MULTI_THREADED 
-#else
-            serviceCommunicationRequest(graph);	    
 
-#endif
 
 
 	    //check if any tasks just become runnable
@@ -375,8 +374,12 @@ void RTS::serviceCommunicationRequest(IcarGraph<1, IcarTask>* graph)
 		IcarTask* t=waitQueue.front();
 	        waitQueue.pop_front();
  	        if(t->checkDependencies()) readyQueue.push_back(t);
-		else waitQueue.push_back(t);
+		else waitQueue.push_back(t); 
             }
+#ifdef MULTI_THREADED 
+#else
+            serviceCommunicationRequest(graph);	    
+#endif
  	    //check if all tasks have finished
 	    if(finishedTasks==nTasks) break;
 	}
