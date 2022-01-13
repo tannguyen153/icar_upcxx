@@ -29,7 +29,7 @@ class redTask : public IcarTask
              msg= new Message(msgSize); //an empty message
          }else msg=NULL;
 	 
-         if(rightNeighbor==-1) _state=RUNNABLE;
+         if(_id==(NTASKS-1)) _state=RUNNABLE;
          else {
 	    _state=WAITING;
              //register the data dependency
@@ -48,9 +48,9 @@ class redTask : public IcarTask
 	 
          if(leftNeighbor!=-1){
 	    memcpy((void*)msg->databuf.local(), &s, sizeof(int));
-            put(rightNeighbor, tag, msg);
+            put(leftNeighbor, tag, msg);
          }
-	 if(_id==0) std::cout<<"Total sum is "<<s<<std::endl;
+	 if(_id==0) std::cout<<"Total Sum (graph version): "<<s<<std::endl;
          _state=FINISHED;
     }
 };
@@ -66,6 +66,16 @@ int main(int argc, char** argv){
     rts.Barrier();
     rts.Run((IcarGraph<1, IcarTask>*) g);
     rts.Barrier();
+
+//verification
+    int data[N];
+    int i0=0, i1=N-1;
+    int s;
+    if(upcxx::rank_me()==0){
+ 	for(int i=0; i<N; i++) data[i]=i;
+        accum(data, &i0, &i1, &s);
+        std::cout<<"Total Sum (serial version): "<<s<<std::endl;
+    }
     delete g;
     rts.Finalize();
     upcxx::finalize();
