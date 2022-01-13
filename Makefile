@@ -15,7 +15,7 @@ export CXXFLAGS += $(INCLUDES) $(FLAGS) $(ARCH_FLAGS) -O3
 export LDFLAGS += $(FLAGS) $(ARCH_FLAGS)
 
 ######################################################################
-SUBDIRS = src tests
+SUBDIRS = src tests tests/reduction_Fortran
 #export VPATH = ../include:../include/tests:../include/visitors \
                ../include/maps:../include/system:../include/dsl
 

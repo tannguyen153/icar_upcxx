@@ -6,10 +6,9 @@ hello_SRC = $(hello).cpp
 1DPropagation_OBJ = $(1DPropagation).o
 1DPropagation_SRC = $(1DPropagation).cpp
 
-
 .PHONY: all
 
-all: $(hello) $(1DPropagation)
+all: $(hello) $(1DPropagation) 
 
 $(hello): $(hello_OBJ) ../lib/IcarUPCXX.a
 	$(CXX) $(hello_OBJ) ../lib/IcarUPCXX.a $(PPFLAGS) $(LDFLAGS) $(LIBFLAGS) -o $(hello)
@@ -22,6 +21,7 @@ $(1DPropagation): $(1DPropagation_OBJ) ../lib/IcarUPCXX.a
 
 1DPropagation.o: $(1DPropagation_SRC) 
 	$(CXX) -c $(1DPropagation_SRC)  -o 1DPropagation.o
+
 
 .PHONY: clean
 
